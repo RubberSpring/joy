@@ -2,6 +2,8 @@
 
 Suite of tools and libraries for interactions with Nintendo Switch and DualShock 4 controllers.
 
+fork made by RubberSpring, i dont know if this will get updates or something.
+
 ## External dependencies
 
 On Linux, you'll need `libusb`, `libbluetooth` and `libudev`. On Ubuntu, you can install these by running:
