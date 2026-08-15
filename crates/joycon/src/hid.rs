@@ -85,7 +85,14 @@ impl JoyCon {
         Span::current().record("special", &report.is_special());
         trace!(out_report = %hex::encode(report.as_bytes()));
         let nb_written = self.device.write(report.as_bytes())?;
-        assert_eq!(nb_written, report.byte_size());
+        // Windows' Bluetooth HID stack may pad a 10-byte rumble-only report
+        // to the controller's 49-byte output-report size. Treat that as a
+        // successful write, while still rejecting genuinely short writes.
+        ensure!(
+            nb_written >= report.byte_size(),
+            "short HID write: wrote {nb_written} bytes for a {}-byte report",
+            report.byte_size()
+        );
         Ok(())
     }
 

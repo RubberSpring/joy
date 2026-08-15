@@ -14,6 +14,7 @@ use joycon::{
     hidapi::HidApi,
     joycon_sys::{
         light::{PlayerLight, PlayerLights},
+        mcu::ir::Resolution,
         output::{RumbleData, RumbleSide},
         JOYCON_L_BT, JOYCON_R_BT, NINTENDO_VENDOR_ID, PRO_CONTROLLER,
     },
@@ -49,7 +50,17 @@ fn ffi_result(f: impl FnOnce() -> Result<(), String>) -> i32 {
 
 /// An opaque HID discovery context. It must outlive controllers opened from it.
 pub struct Context(HidApi);
-pub struct Controller(JoyCon);
+pub struct Controller {
+    device: JoyCon,
+    infrared_frame: Option<InfraredFrame>,
+    infrared_frame_pending: bool,
+}
+
+struct InfraredFrame {
+    width: u32,
+    height: u32,
+    pixels: Vec<u8>,
+}
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
@@ -86,6 +97,14 @@ pub struct JoySharpState {
     pub is_connected: u8,
     pub _reserved: u8,
     pub motion: [JoySharpMotionSample; 3],
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct JoySharpInfraredFrameInfo {
+    pub width: u32,
+    pub height: u32,
+    pub byte_count: usize,
 }
 
 fn controller_kind(product_id: u16) -> u32 {
@@ -189,7 +208,11 @@ pub unsafe extern "C" fn joysharp_controller_open(
         let mut controller = JoyCon::new(device, device_info).map_err(|e| e.to_string())?;
         controller.enable_imu().map_err(|e| e.to_string())?;
         controller.load_calibration().map_err(|e| e.to_string())?;
-        *out_controller = Box::into_raw(Box::new(Controller(controller)));
+        *out_controller = Box::into_raw(Box::new(Controller {
+            device: controller,
+            infrared_frame: None,
+            infrared_frame_pending: false,
+        }));
         Ok(())
     })
 }
@@ -209,7 +232,7 @@ pub unsafe extern "C" fn joysharp_controller_read(
     ffi_result(|| {
         let controller = controller.as_mut().ok_or("controller is null")?;
         let out_state = out_state.as_mut().ok_or("out_state is null")?;
-        let report = controller.0.tick().map_err(|e| e.to_string())?;
+        let report = controller.device.tick().map_err(|e| e.to_string())?;
         let b = report.buttons;
         let mut buttons = 0u32;
         for (pressed, bit) in [
@@ -259,6 +282,15 @@ pub unsafe extern "C" fn joysharp_controller_read(
                 target.rotation_z = source.gyro.z as f32;
             }
         }
+        if let Some(image) = report.image {
+            let (width, height) = image.dimensions();
+            controller.infrared_frame = Some(InfraredFrame {
+                width,
+                height,
+                pixels: image.into_raw(),
+            });
+            controller.infrared_frame_pending = true;
+        }
         *out_state = state;
         Ok(())
     })
@@ -279,7 +311,7 @@ pub unsafe extern "C" fn joysharp_controller_set_player_lights(
             }
         };
         controller
-            .0
+            .device
             .set_player_light(PlayerLights::new(light(0), light(1), light(2), light(3)))
             .map_err(|e| e.to_string())
     })
@@ -296,12 +328,122 @@ pub unsafe extern "C" fn joysharp_controller_rumble(
         let controller = controller.as_mut().ok_or("controller is null")?;
         let side = RumbleSide::from_freq(high_frequency, amplitude, low_frequency, amplitude);
         controller
-            .0
+            .device
             .set_rumble(RumbleData {
                 left: side,
                 right: side,
             })
             .map_err(|e| e.to_string())
+    })
+}
+
+fn infrared_resolution(value: u32) -> Result<Resolution, String> {
+    match value {
+        0 => Ok(Resolution::R320x240),
+        1 => Ok(Resolution::R160x120),
+        2 => Ok(Resolution::R80x60),
+        3 => Ok(Resolution::R40x30),
+        _ => Err(format!("unsupported infrared resolution {value}")),
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn joysharp_controller_supports_infrared(
+    controller: *const Controller,
+    out_supported: *mut u8,
+) -> i32 {
+    ffi_result(|| {
+        let controller = controller.as_ref().ok_or("controller is null")?;
+        let out_supported = out_supported.as_mut().ok_or("out_supported is null")?;
+        *out_supported = controller.device.supports_ir() as u8;
+        Ok(())
+    })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn joysharp_controller_enable_infrared(
+    controller: *mut Controller,
+    resolution: u32,
+) -> i32 {
+    ffi_result(|| {
+        let controller = controller.as_mut().ok_or("controller is null")?;
+        if !controller.device.supports_ir() {
+            return Err("the selected controller does not have an infrared camera".into());
+        }
+        controller
+            .device
+            .enable_ir(infrared_resolution(resolution)?)
+            .map_err(|e| e.to_string())?;
+        controller.infrared_frame = None;
+        controller.infrared_frame_pending = false;
+        Ok(())
+    })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn joysharp_controller_disable_infrared(controller: *mut Controller) -> i32 {
+    ffi_result(|| {
+        let controller = controller.as_mut().ok_or("controller is null")?;
+        if controller.device.supports_ir() {
+            controller.device.disable_mcu().map_err(|e| e.to_string())?;
+        }
+        controller.infrared_frame = None;
+        controller.infrared_frame_pending = false;
+        Ok(())
+    })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn joysharp_controller_infrared_frame_info(
+    controller: *const Controller,
+    out_info: *mut JoySharpInfraredFrameInfo,
+) -> i32 {
+    ffi_result(|| {
+        let controller = controller.as_ref().ok_or("controller is null")?;
+        let out_info = out_info.as_mut().ok_or("out_info is null")?;
+        *out_info = controller
+            .infrared_frame
+            .as_ref()
+            .filter(|_| controller.infrared_frame_pending)
+            .map_or_else(JoySharpInfraredFrameInfo::default, |frame| {
+                JoySharpInfraredFrameInfo {
+                    width: frame.width,
+                    height: frame.height,
+                    byte_count: frame.pixels.len(),
+                }
+            });
+        Ok(())
+    })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn joysharp_controller_copy_infrared_frame(
+    controller: *mut Controller,
+    buffer: *mut u8,
+    capacity: usize,
+) -> i32 {
+    ffi_result(|| {
+        let controller = controller.as_mut().ok_or("controller is null")?;
+        if !controller.infrared_frame_pending {
+            return Err("no new infrared frame is available".into());
+        }
+        let frame = controller
+            .infrared_frame
+            .as_ref()
+            .ok_or("no infrared frame is available")?;
+        if capacity < frame.pixels.len() {
+            return Err(format!(
+                "infrared frame buffer is too small: need {} bytes, got {capacity}",
+                frame.pixels.len()
+            ));
+        }
+        if frame.pixels.is_empty() {
+            return Ok(());
+        }
+        let buffer = buffer.as_mut().ok_or("buffer is null")?;
+        ptr::copy_nonoverlapping(frame.pixels.as_ptr(), buffer, frame.pixels.len());
+        controller.infrared_frame_pending = false;
+        Ok(())
     })
 }
 

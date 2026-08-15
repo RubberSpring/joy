@@ -41,3 +41,31 @@ cargo build -p joysharp-native --release
 Then place the produced native library beside your .NET application and add a
 project reference to `dotnet/JoySharp/JoySharp.csproj`. See the
 [`JoySharp` wrapper README](dotnet/JoySharp/README.md) for a complete example.
+
+### Run the C# sample
+
+With a Joy-Con or Pro Controller paired to the computer, build the native
+bridge and run the included .NET 8 sample from the repository root:
+
+```powershell
+cargo build -p joysharp-native --release
+dotnet run --project dotnet/JoySharp.Sample
+```
+
+The sample lists Nintendo HID devices, opens device `0`, sets its first player
+light, briefly rumbles it, then prints button, stick, and battery updates.
+Select another detected device by passing its index after `--`:
+
+```powershell
+dotnet run --project dotnet/JoySharp.Sample -- 1
+```
+
+For a right Joy-Con's infrared camera, append `--ir`. The sample enables the
+camera at 160×120 and reports each available grayscale frame:
+
+```powershell
+dotnet run --project dotnet/JoySharp.Sample -- --ir
+```
+
+Use `--ir-output .\ir-frames` to save every IR frame as a lossless binary PGM
+image for offline analysis.

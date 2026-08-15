@@ -18,3 +18,6 @@ TestResults/
 *.snupkg
 *.dll
 *.pdb
+ 
+# generated test data
+ir-frames/

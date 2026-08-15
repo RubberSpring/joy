@@ -9,5 +9,4 @@ description = "C ABI bridge for using joy from .NET"
 crate-type = ["cdylib"]
 
 [dependencies]
-joycon = { path = "../joycon" }
-
+joycon = { path = "../joycon", features = ["ir"] }
