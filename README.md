@@ -25,3 +25,19 @@ The tools can be run with `cargo run --bin <tool>`.
 - [`joycon`](https://yamakaky.github.io/joy/joycon): implements I/O and communication protocols on top of `joycon-sys`.
 - [`dualshock`](https://yamakaky.github.io/joy/dualshock): decoding HID reports from the DS4 controller.
 - [`hid-gamepad`](https://yamakaky.github.io/joy/hid_gamepad): abstraction above `dualshock` and `joycon`.
+
+## C# / .NET
+
+This fork includes `joysharp-native`, a stable native C ABI over `joycon`, and
+`dotnet/JoySharp`, its .NET 8 wrapper. It supports Nintendo-controller
+discovery, polling buttons/sticks/IMU/battery state, player LEDs, and rumble.
+
+Build the native DLL with:
+
+```powershell
+cargo build -p joysharp-native --release
+```
+
+Then place the produced native library beside your .NET application and add a
+project reference to `dotnet/JoySharp/JoySharp.csproj`. See the
+[`JoySharp` wrapper README](dotnet/JoySharp/README.md) for a complete example.

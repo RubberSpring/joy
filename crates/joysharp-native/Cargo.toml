@@ -1,0 +1,13 @@
+[package]
+name = "joysharp-native"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "C ABI bridge for using joy from .NET"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+joycon = { path = "../joycon" }
+

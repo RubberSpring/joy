@@ -8,6 +8,7 @@ members = [
     "crates/hid-gamepad-types",
     "crates/joycon-sys",
     "crates/joycon",
+    "crates/joysharp-native",
     # removed for huge number of deps
     #"joy-infrared",
     "joy-music",
