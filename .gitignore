@@ -2,3 +2,19 @@
 **/*.rs.bk
 flamegraph.svg
 perf.data*
+
+# .NET build outputs and IDE state
+[Bb]in/
+[Oo]bj/
+.vs/
+TestResults/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# NuGet packages and generated native interop artifacts
+*.nupkg
+*.snupkg
+*.dll
+*.pdb
