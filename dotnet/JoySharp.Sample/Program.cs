@@ -2,6 +2,8 @@ using JoySharp;
 
 var useInfrared = false;
 string? infraredOutputDirectory = null;
+uint? infraredExposure = null;
+var useMaximumInfraredExposure = false;
 var selectedIndex = 0;
 
 for (var argumentIndex = 0; argumentIndex < args.Length; argumentIndex++)
@@ -20,6 +22,19 @@ for (var argumentIndex = 0; argumentIndex < args.Length; argumentIndex++)
             infraredOutputDirectory = args[argumentIndex];
             useInfrared = true;
             break;
+        case "--ir-exposure":
+            if (++argumentIndex >= args.Length || !uint.TryParse(args[argumentIndex], out var exposure))
+            {
+                Console.Error.WriteLine("--ir-exposure requires an exposure in microseconds (1-600).");
+                return;
+            }
+            infraredExposure = exposure;
+            useInfrared = true;
+            break;
+        case "--ir-max-exposure":
+            useMaximumInfraredExposure = true;
+            useInfrared = true;
+            break;
         default:
             if (!int.TryParse(args[argumentIndex], out selectedIndex))
             {
@@ -28,6 +43,12 @@ for (var argumentIndex = 0; argumentIndex < args.Length; argumentIndex++)
             }
             break;
     }
+}
+
+if (infraredExposure is not null && useMaximumInfraredExposure)
+{
+    Console.Error.WriteLine("Choose either --ir-exposure or --ir-max-exposure, not both.");
+    return;
 }
 
 using var context = new JoyContext();
@@ -63,7 +84,21 @@ if (useInfrared)
         return;
     }
     controller.EnableInfrared(JoySharpInfraredResolution.R160x120);
-    Console.WriteLine("Infrared camera enabled at 160x120.");
+    if (infraredExposure is uint exposure)
+    {
+        controller.SetInfraredExposureMode(JoySharpInfraredExposureMode.Manual);
+        controller.SetInfraredExposure(exposure);
+        Console.WriteLine($"Infrared camera enabled at 160x120 with {exposure} µs exposure.");
+    }
+    else if (useMaximumInfraredExposure)
+    {
+        controller.SetInfraredExposureMode(JoySharpInfraredExposureMode.Max);
+        Console.WriteLine("Infrared camera enabled at 160x120 with maximum exposure.");
+    }
+    else
+    {
+        Console.WriteLine("Infrared camera enabled at 160x120.");
+    }
     if (infraredOutputDirectory is not null)
     {
         Directory.CreateDirectory(infraredOutputDirectory);

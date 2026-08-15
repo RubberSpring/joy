@@ -20,6 +20,12 @@ public enum JoySharpInfraredResolution : uint
     R40x30 = 3,
 }
 
+public enum JoySharpInfraredExposureMode : uint
+{
+    Manual = 0,
+    Max = 1,
+}
+
 [StructLayout(LayoutKind.Sequential)]
 public struct DeviceInfo { public ushort VendorId, ProductId; public uint ControllerKind; }
 [StructLayout(LayoutKind.Sequential)]
@@ -53,6 +59,8 @@ public sealed class JoyController : IDisposable
     public bool SupportsInfrared { get { Native.Check(Native.ControllerSupportsInfrared(_handle, out var supported)); return supported != 0; } }
     public void EnableInfrared(JoySharpInfraredResolution resolution = JoySharpInfraredResolution.R160x120) => Native.Check(Native.ControllerEnableInfrared(_handle, resolution));
     public void DisableInfrared() => Native.Check(Native.ControllerDisableInfrared(_handle));
+    public void SetInfraredExposureMode(JoySharpInfraredExposureMode mode) => Native.Check(Native.ControllerSetInfraredExposureMode(_handle, mode));
+    public void SetInfraredExposure(uint microseconds) => Native.Check(Native.ControllerSetInfraredExposure(_handle, microseconds));
     public bool TryGetInfraredFrame(out InfraredFrameInfo info, out byte[] pixels)
     {
         Native.Check(Native.ControllerInfraredFrameInfo(_handle, out info));
@@ -85,5 +93,7 @@ internal static partial class Native
     [LibraryImport(Library, EntryPoint = "joysharp_controller_disable_infrared")] internal static partial int ControllerDisableInfrared(IntPtr controller);
     [LibraryImport(Library, EntryPoint = "joysharp_controller_infrared_frame_info")] internal static partial int ControllerInfraredFrameInfo(IntPtr controller, out InfraredFrameInfo info);
     [LibraryImport(Library, EntryPoint = "joysharp_controller_copy_infrared_frame")] internal static partial int ControllerCopyInfraredFrame(IntPtr controller, [Out] byte[] buffer, nuint capacity);
+    [LibraryImport(Library, EntryPoint = "joysharp_controller_set_infrared_exposure_mode")] internal static partial int ControllerSetInfraredExposureMode(IntPtr controller, JoySharpInfraredExposureMode mode);
+    [LibraryImport(Library, EntryPoint = "joysharp_controller_set_infrared_exposure")] internal static partial int ControllerSetInfraredExposure(IntPtr controller, uint microseconds);
     [LibraryImport(Library, EntryPoint = "joysharp_last_error")] private static unsafe partial nuint LastError(byte* buffer, nuint capacity);
 }

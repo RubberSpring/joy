@@ -14,7 +14,7 @@ use joycon::{
     hidapi::HidApi,
     joycon_sys::{
         light::{PlayerLight, PlayerLights},
-        mcu::ir::Resolution,
+        mcu::ir::{ExposureMode, Register, Resolution},
         output::{RumbleData, RumbleSide},
         JOYCON_L_BT, JOYCON_R_BT, NINTENDO_VENDOR_ID, PRO_CONTROLLER,
     },
@@ -54,6 +54,7 @@ pub struct Controller {
     device: JoyCon,
     infrared_frame: Option<InfraredFrame>,
     infrared_frame_pending: bool,
+    infrared_enabled: bool,
 }
 
 struct InfraredFrame {
@@ -212,6 +213,7 @@ pub unsafe extern "C" fn joysharp_controller_open(
             device: controller,
             infrared_frame: None,
             infrared_frame_pending: false,
+            infrared_enabled: false,
         }));
         Ok(())
     })
@@ -376,6 +378,7 @@ pub unsafe extern "C" fn joysharp_controller_enable_infrared(
             .map_err(|e| e.to_string())?;
         controller.infrared_frame = None;
         controller.infrared_frame_pending = false;
+        controller.infrared_enabled = true;
         Ok(())
     })
 }
@@ -389,6 +392,7 @@ pub unsafe extern "C" fn joysharp_controller_disable_infrared(controller: *mut C
         }
         controller.infrared_frame = None;
         controller.infrared_frame_pending = false;
+        controller.infrared_enabled = false;
         Ok(())
     })
 }
@@ -444,6 +448,51 @@ pub unsafe extern "C" fn joysharp_controller_copy_infrared_frame(
         ptr::copy_nonoverlapping(frame.pixels.as_ptr(), buffer, frame.pixels.len());
         controller.infrared_frame_pending = false;
         Ok(())
+    })
+}
+
+fn infrared_controller(controller: &mut Controller) -> Result<&mut JoyCon, String> {
+    if !controller.device.supports_ir() {
+        return Err("the selected controller does not have an infrared camera".into());
+    }
+    if !controller.infrared_enabled {
+        return Err("enable infrared before changing infrared camera settings".into());
+    }
+    Ok(&mut controller.device)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn joysharp_controller_set_infrared_exposure_mode(
+    controller: *mut Controller,
+    mode: u32,
+) -> i32 {
+    ffi_result(|| {
+        let controller = controller.as_mut().ok_or("controller is null")?;
+        let mode = match mode {
+            0 => ExposureMode::Manual,
+            1 => ExposureMode::Max,
+            _ => return Err(format!("unsupported infrared exposure mode {mode}")),
+        };
+        infrared_controller(controller)?
+            .set_ir_registers(&[Register::exposure_mode(mode), Register::finish()])
+            .map_err(|e| e.to_string())
+    })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn joysharp_controller_set_infrared_exposure(
+    controller: *mut Controller,
+    microseconds: u32,
+) -> i32 {
+    ffi_result(|| {
+        if !(1..=600).contains(&microseconds) {
+            return Err("infrared exposure must be between 1 and 600 microseconds".into());
+        }
+        let controller = controller.as_mut().ok_or("controller is null")?;
+        let registers = Register::exposure_us(microseconds);
+        infrared_controller(controller)?
+            .set_ir_registers(&[registers[0], registers[1], Register::finish()])
+            .map_err(|e| e.to_string())
     })
 }
 

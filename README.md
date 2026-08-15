@@ -69,3 +69,6 @@ dotnet run --project dotnet/JoySharp.Sample -- --ir
 
 Use `--ir-output .\ir-frames` to save every IR frame as a lossless binary PGM
 image for offline analysis.
+
+The sample also accepts `--ir-exposure 400` (manual exposure in microseconds,
+1–600) or `--ir-max-exposure`.

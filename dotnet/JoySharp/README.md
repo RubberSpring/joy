@@ -32,12 +32,17 @@ each `Read`, retrieve a newly received grayscale frame as one byte per pixel:
 if (controller.SupportsInfrared)
 {
     controller.EnableInfrared(JoySharpInfraredResolution.R160x120);
+    controller.SetInfraredExposureMode(JoySharpInfraredExposureMode.Manual);
+    controller.SetInfraredExposure(400); // 1-600 microseconds
     var state = controller.Read();
     if (controller.TryGetInfraredFrame(out var frame, out var pixels))
         Console.WriteLine($"{frame.Width}x{frame.Height}: {pixels.Length} bytes");
     controller.DisableInfrared();
 }
 ```
+
+Use `SetInfraredExposureMode(JoySharpInfraredExposureMode.Max)` to let the
+sensor use its maximum exposure instead.
 
 `JoyContext` must remain alive until every `JoyController` opened from it has
 been disposed. Call controller methods from one thread at a time.
