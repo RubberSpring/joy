@@ -1,8 +1,36 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <PackageId>JoySharp</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>RubberSpring</Authors>
+    <Company>RubberSpring</Company>
+    <Description>.NET bindings for the awesome joy Rust library.</Description>
+    <PackageTags>joycon;nintendo;controller;hid;infrared;gamepad</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/RubberSpring/joy</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/RubberSpring/joy</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <JoySharpNativeTarget Condition="'$(JoySharpNativeTarget)' == ''">x86_64-pc-windows-msvc</JoySharpNativeTarget>
+    <JoySharpNativeLibrary>$(MSBuildThisFileDirectory)..\..\target\$(JoySharpNativeTarget)\release\joysharp_native.dll</JoySharpNativeLibrary>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+    <None Include="$(JoySharpNativeLibrary)"
+          Pack="true"
+          PackagePath="runtimes/win-x64/native/" />
+  </ItemGroup>
+
+  <Target Name="BuildJoySharpNativeForPackage" BeforeTargets="GenerateNuspec">
+    <Error Condition="'$(OS)' != 'Windows_NT'" Text="The JoySharp 0.1.0 package currently ships only a Windows x64 native library. Pack it on Windows, or add a native artifact for this platform." />
+    <Exec Command="cargo build -p joysharp-native --release --target $(JoySharpNativeTarget)"
+          WorkingDirectory="$(MSBuildThisFileDirectory)..\.." />
+  </Target>
 </Project>

@@ -1,3 +1,4 @@
+using System;
 using System.Runtime.InteropServices;
 
 namespace JoySharp;
@@ -31,7 +32,7 @@ public struct DeviceInfo { public ushort VendorId, ProductId; public uint Contro
 [StructLayout(LayoutKind.Sequential)]
 public struct MotionSample { public float AccelerationX, AccelerationY, AccelerationZ, RotationX, RotationY, RotationZ; }
 [StructLayout(LayoutKind.Sequential)]
-public struct InfraredFrameInfo { public uint Width, Height; public nuint ByteCount; }
+public struct InfraredFrameInfo { public uint Width, Height; public UIntPtr ByteCount; }
 [StructLayout(LayoutKind.Sequential)]
 public struct ControllerState
 {
@@ -45,9 +46,10 @@ public sealed class JoyContext : IDisposable
 {
     private IntPtr _handle;
     public JoyContext() { Native.Check(Native.ContextCreate(out _handle)); }
-    public int DeviceCount { get { Native.Check(Native.DeviceCount(_handle, out var count)); return checked((int)count); } }
-    public DeviceInfo GetDeviceInfo(int index) { Native.Check(Native.DeviceGetInfo(_handle, checked((nuint)index), out var info)); return info; }
-    public JoyController Open(int index) { Native.Check(Native.ControllerOpen(_handle, checked((nuint)index), out var controller)); return new JoyController(controller); }
+    public int DeviceCount { get { Native.Check(Native.DeviceCount(_handle, out var count)); return checked((int)count.ToUInt64()); } }
+    public DeviceInfo GetDeviceInfo(int index) { Native.Check(Native.DeviceGetInfo(_handle, ToSize(index), out var info)); return info; }
+    public JoyController Open(int index) { Native.Check(Native.ControllerOpen(_handle, ToSize(index), out var controller)); return new JoyController(controller); }
+    private static UIntPtr ToSize(int value) => new UIntPtr(checked((ulong)value));
     public void Dispose() { if (_handle != IntPtr.Zero) { Native.ContextDestroy(_handle); _handle = IntPtr.Zero; GC.SuppressFinalize(this); } }
 }
 
@@ -64,8 +66,8 @@ public sealed class JoyController : IDisposable
     public bool TryGetInfraredFrame(out InfraredFrameInfo info, out byte[] pixels)
     {
         Native.Check(Native.ControllerInfraredFrameInfo(_handle, out info));
-        if (info.ByteCount == 0) { pixels = []; return false; }
-        pixels = new byte[checked((int)info.ByteCount)];
+        if (info.ByteCount == UIntPtr.Zero) { pixels = Array.Empty<byte>(); return false; }
+        pixels = new byte[checked((int)info.ByteCount.ToUInt64())];
         Native.Check(Native.ControllerCopyInfraredFrame(_handle, pixels, info.ByteCount));
         return true;
     }
@@ -78,22 +80,28 @@ internal static partial class Native
 {
     private const string Library = "joysharp_native";
     internal static void Check(int result) { if (result != 0) throw new InvalidOperationException(GetLastError()); }
-    private static unsafe string GetLastError() { var length = LastError(null, 0); var buffer = new byte[checked((int)length + 1)]; fixed (byte* pointer = buffer) { LastError(pointer, (nuint)buffer.Length); } return System.Text.Encoding.UTF8.GetString(buffer, 0, (int)length); }
-    [LibraryImport(Library, EntryPoint = "joysharp_context_create")] internal static partial int ContextCreate(out IntPtr context);
-    [LibraryImport(Library, EntryPoint = "joysharp_context_destroy")] internal static partial void ContextDestroy(IntPtr context);
-    [LibraryImport(Library, EntryPoint = "joysharp_device_count")] internal static partial int DeviceCount(IntPtr context, out nuint count);
-    [LibraryImport(Library, EntryPoint = "joysharp_device_get_info")] internal static partial int DeviceGetInfo(IntPtr context, nuint index, out DeviceInfo info);
-    [LibraryImport(Library, EntryPoint = "joysharp_controller_open")] internal static partial int ControllerOpen(IntPtr context, nuint index, out IntPtr controller);
-    [LibraryImport(Library, EntryPoint = "joysharp_controller_destroy")] internal static partial void ControllerDestroy(IntPtr controller);
-    [LibraryImport(Library, EntryPoint = "joysharp_controller_read")] internal static partial int ControllerRead(IntPtr controller, out ControllerState state);
-    [LibraryImport(Library, EntryPoint = "joysharp_controller_set_player_lights")] internal static partial int SetPlayerLights(IntPtr controller, byte lights);
-    [LibraryImport(Library, EntryPoint = "joysharp_controller_rumble")] internal static partial int Rumble(IntPtr controller, float lowFrequency, float highFrequency, float amplitude);
-    [LibraryImport(Library, EntryPoint = "joysharp_controller_supports_infrared")] internal static partial int ControllerSupportsInfrared(IntPtr controller, out byte supported);
-    [LibraryImport(Library, EntryPoint = "joysharp_controller_enable_infrared")] internal static partial int ControllerEnableInfrared(IntPtr controller, JoySharpInfraredResolution resolution);
-    [LibraryImport(Library, EntryPoint = "joysharp_controller_disable_infrared")] internal static partial int ControllerDisableInfrared(IntPtr controller);
-    [LibraryImport(Library, EntryPoint = "joysharp_controller_infrared_frame_info")] internal static partial int ControllerInfraredFrameInfo(IntPtr controller, out InfraredFrameInfo info);
-    [LibraryImport(Library, EntryPoint = "joysharp_controller_copy_infrared_frame")] internal static partial int ControllerCopyInfraredFrame(IntPtr controller, [Out] byte[] buffer, nuint capacity);
-    [LibraryImport(Library, EntryPoint = "joysharp_controller_set_infrared_exposure_mode")] internal static partial int ControllerSetInfraredExposureMode(IntPtr controller, JoySharpInfraredExposureMode mode);
-    [LibraryImport(Library, EntryPoint = "joysharp_controller_set_infrared_exposure")] internal static partial int ControllerSetInfraredExposure(IntPtr controller, uint microseconds);
-    [LibraryImport(Library, EntryPoint = "joysharp_last_error")] private static unsafe partial nuint LastError(byte* buffer, nuint capacity);
+    private static unsafe string GetLastError()
+    {
+        var length = LastError(null, UIntPtr.Zero).ToUInt64();
+        var buffer = new byte[checked((int)length + 1)];
+        fixed (byte* pointer = buffer) { LastError(pointer, new UIntPtr((uint)buffer.Length)); }
+        return System.Text.Encoding.UTF8.GetString(buffer, 0, checked((int)length));
+    }
+    [DllImport(Library, EntryPoint = "joysharp_context_create", CallingConvention = CallingConvention.Cdecl)] internal static extern int ContextCreate(out IntPtr context);
+    [DllImport(Library, EntryPoint = "joysharp_context_destroy", CallingConvention = CallingConvention.Cdecl)] internal static extern void ContextDestroy(IntPtr context);
+    [DllImport(Library, EntryPoint = "joysharp_device_count", CallingConvention = CallingConvention.Cdecl)] internal static extern int DeviceCount(IntPtr context, out UIntPtr count);
+    [DllImport(Library, EntryPoint = "joysharp_device_get_info", CallingConvention = CallingConvention.Cdecl)] internal static extern int DeviceGetInfo(IntPtr context, UIntPtr index, out DeviceInfo info);
+    [DllImport(Library, EntryPoint = "joysharp_controller_open", CallingConvention = CallingConvention.Cdecl)] internal static extern int ControllerOpen(IntPtr context, UIntPtr index, out IntPtr controller);
+    [DllImport(Library, EntryPoint = "joysharp_controller_destroy", CallingConvention = CallingConvention.Cdecl)] internal static extern void ControllerDestroy(IntPtr controller);
+    [DllImport(Library, EntryPoint = "joysharp_controller_read", CallingConvention = CallingConvention.Cdecl)] internal static extern int ControllerRead(IntPtr controller, out ControllerState state);
+    [DllImport(Library, EntryPoint = "joysharp_controller_set_player_lights", CallingConvention = CallingConvention.Cdecl)] internal static extern int SetPlayerLights(IntPtr controller, byte lights);
+    [DllImport(Library, EntryPoint = "joysharp_controller_rumble", CallingConvention = CallingConvention.Cdecl)] internal static extern int Rumble(IntPtr controller, float lowFrequency, float highFrequency, float amplitude);
+    [DllImport(Library, EntryPoint = "joysharp_controller_supports_infrared", CallingConvention = CallingConvention.Cdecl)] internal static extern int ControllerSupportsInfrared(IntPtr controller, out byte supported);
+    [DllImport(Library, EntryPoint = "joysharp_controller_enable_infrared", CallingConvention = CallingConvention.Cdecl)] internal static extern int ControllerEnableInfrared(IntPtr controller, JoySharpInfraredResolution resolution);
+    [DllImport(Library, EntryPoint = "joysharp_controller_disable_infrared", CallingConvention = CallingConvention.Cdecl)] internal static extern int ControllerDisableInfrared(IntPtr controller);
+    [DllImport(Library, EntryPoint = "joysharp_controller_infrared_frame_info", CallingConvention = CallingConvention.Cdecl)] internal static extern int ControllerInfraredFrameInfo(IntPtr controller, out InfraredFrameInfo info);
+    [DllImport(Library, EntryPoint = "joysharp_controller_copy_infrared_frame", CallingConvention = CallingConvention.Cdecl)] internal static extern int ControllerCopyInfraredFrame(IntPtr controller, [Out] byte[] buffer, UIntPtr capacity);
+    [DllImport(Library, EntryPoint = "joysharp_controller_set_infrared_exposure_mode", CallingConvention = CallingConvention.Cdecl)] internal static extern int ControllerSetInfraredExposureMode(IntPtr controller, JoySharpInfraredExposureMode mode);
+    [DllImport(Library, EntryPoint = "joysharp_controller_set_infrared_exposure", CallingConvention = CallingConvention.Cdecl)] internal static extern int ControllerSetInfraredExposure(IntPtr controller, uint microseconds);
+    [DllImport(Library, EntryPoint = "joysharp_last_error", CallingConvention = CallingConvention.Cdecl)] private static unsafe extern UIntPtr LastError(byte* buffer, UIntPtr capacity);
 }
