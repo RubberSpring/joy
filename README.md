@@ -1,16 +1,16 @@
-# joy
+# JoySharp
 
-Suite of tools and libraries for interactions with Nintendo Switch and DualShock 4 controllers.
+Suite of tools and libraries for interactions with Nintendo Switch and ~~DualShock 4 controllers~~ nvm i didn't test it or whatever.
 
 fork made by RubberSpring, i dont know if this will get updates or something.
 
-THIS IS A VERY SLOPPLY MADE LIBRARY! USE AT YOUR OWN RISK!!!
+THIS IS A VERY SLOPPILY MADE LIBRARY! USE AT YOUR OWN RISK!!!
 
 ## External dependencies
 
 On Linux, you'll need `libusb`, `libbluetooth` and `libudev`. On Ubuntu, you can install these by running:
 
-```sh
+```bash
 sudo apt-get install libusb-1.0-0-dev libbluetooth-dev libudev-dev
 ```
 
@@ -31,12 +31,12 @@ The tools can be run with `cargo run --bin <tool>`.
 ## C# / .NET
 
 This fork includes `joysharp-native`, a stable native C ABI over `joycon`, and
-`dotnet/JoySharp`, its .NET 8 wrapper. It supports Nintendo-controller
-discovery, polling buttons/sticks/IMU/battery state, player LEDs, and rumble.
+`dotnet/JoySharp`, its .NET Standard. It supports Nintendo-controller
+discovery, polling buttons/sticks/IMU/battery state, player LEDs, rumble and IR (see NOW there's a reason this is better JoyCon.NET).
 
 Build the native DLL with:
 
-```powershell
+```bash
 cargo build -p joysharp-native --release
 ```
 
@@ -49,7 +49,7 @@ project reference to `dotnet/JoySharp/JoySharp.csproj`. See the
 With a Joy-Con or Pro Controller paired to the computer, build the native
 bridge and run the included .NET 8 sample from the repository root:
 
-```powershell
+```bash
 cargo build -p joysharp-native --release
 dotnet run --project dotnet/JoySharp.Sample
 ```
@@ -58,7 +58,7 @@ The sample lists Nintendo HID devices, opens device `0`, sets its first player
 light, briefly rumbles it, then prints button, stick, and battery updates.
 Select another detected device by passing its index after `--`:
 
-```powershell
+```bash
 dotnet run --project dotnet/JoySharp.Sample -- 1
 ```
 
