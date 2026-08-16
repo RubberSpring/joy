@@ -3,7 +3,7 @@ use crossterm::{
     event::{self, Event as CEvent, KeyCode},
     terminal::{disable_raw_mode, enable_raw_mode},
 };
-use joycon::hidapi::{HidApi, DeviceInfo, HidDevice};
+use joycon::hidapi::{DeviceInfo, HidApi, HidDevice};
 use joycon::joycon_sys::{HID_IDS, NINTENDO_VENDOR_ID};
 use std::{
     collections::{HashMap, HashSet},
@@ -115,7 +115,7 @@ pub fn run() -> Result<()> {
 }
 
 fn render_device(menu_state: &ListState) -> (List, Table) {
-    let menu = List::new()
+    let menu = List::new();
     Table::new(vec![ListItem::new(content)]);
     (menu, values)
 }
